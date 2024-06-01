@@ -1,9 +1,12 @@
 import itertools
 import random
 import math
+from time import sleep
 
 VALUES = [2, 3, 4, 5, 6, 7, 8, 9, 10, 'J', 'Q', 'K', 'A']
 SUITS = ["♠", "♥", "♦", "♣"]
+DEALER_STAND = 18  # Dealer stands on 18 or higher
+BLACKJACK_MULTIPLIER = 2.5  # Blackjack pays 2.5x
 
 
 class card:
@@ -15,9 +18,10 @@ class card:
         return f"{self.val}{self.suit}"
 
     def value(self):
-        if self.val in ['J', 'Q', 'K', 'A']:
+        if self.val in ['J', 'Q', 'K']:
             return 10
-            # TODO make aces work
+        elif self.val == 'A':
+            return 11
         else:
             return self.val
 
@@ -40,8 +44,9 @@ class shoe:
 
 
 class player:
-    def __init__(self, balance):
+    def __init__(self, name: str, balance: int):
         self.bal = int(balance)
+        self.name = name
         self.hand = []
 
     def bet(self, amount):
@@ -60,11 +65,19 @@ class player:
     def get_hand(self):
         return self.hand
 
+    def get_name(self):
+        return self.name
+
     def clear_hand(self):
         self.hand = []
 
     def get_hand_value(self):
-        return sum([card.value() for card in self.hand])
+        value = sum([card.value() for card in self.hand])
+        aces = sum(card.val == 'A' for card in self.hand)
+        while value > 21 and aces:
+            value -= 10
+            aces -= 1
+        return value
 
     def take(self, card):
         self.hand.append(card)
@@ -74,8 +87,8 @@ def play_game():
     # The 'deck' is a collection of some number of decks
     deck = shoe(8)
 
-    player1 = player(10000)
-    dealer = player(100_000_000)
+    player1 = player('You', 10000)
+    dealer = player('Dealer', 100_000_000)
 
     print("Players balance:", player1.get_balance())
 
@@ -85,8 +98,15 @@ def play_game():
         dealer.clear_hand()
         if player1.get_balance() > 1_000_000:
             print('You win')
-            break
+            return
     print('You went bankrupt...')
+    return
+
+
+def print_hands(player1, player2):
+    print(f"{player1.get_name()}: {player1.get_hand()} (Value {player1.get_hand_value()})")
+    print(f"{player2.get_name()}: {player2.get_hand()} (Value {player2.get_hand_value()})")
+    print()
 
 
 def play_hand(dealer, player1, deck):
@@ -99,8 +119,8 @@ def play_hand(dealer, player1, deck):
     dealer.take(deck.draw())
 
     print(f"You have {player1.get_hand()}. (Value {player1.get_hand_value()})")
-    if player1.get_hand_value == 21:
-        player1.deposit(bet_amount * 2.5)
+    if player1.get_hand_value() == 21:
+        player1.deposit(math.round(bet_amount * BLACKJACK_MULTIPLIER))
         print('Blackjack!')
         return True
     print(f"Dealer has {dealer.get_hand()}. (Value {dealer.get_hand_value()})")
@@ -109,20 +129,13 @@ def play_hand(dealer, player1, deck):
             f"Hit or Stand? (h/s):") == 'h' else False
         if hit:
             player1.take(deck.draw())
-            print(
-                f"You have {player1.get_hand()}. (Value {player1.get_hand_value()})")
-            print(
-                f"Dealer has {dealer.get_hand()}. (Value {dealer.get_hand_value()})")
-            print()
+            print_hands(player1, dealer)
             continue
         else:
-            while dealer.get_hand_value() < 18:
+            while dealer.get_hand_value() < DEALER_STAND:
+                sleep(0.5)
                 dealer.take(deck.draw())
-                print(
-                    f"You have {player1.get_hand()}. (Value {player1.get_hand_value()})")
-                print(
-                    f"Dealer has {dealer.get_hand()}. (Value {dealer.get_hand_value()})")
-                print()
+                print_hands(player1, dealer)
             if dealer.get_hand_value() > 21:
                 print('Dealer Busted')
                 player1.deposit(bet_amount*2)
